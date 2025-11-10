@@ -10,29 +10,49 @@ import { FlrCodeUtil } from './util/FlrCodeUtil';
 import { exec } from 'child_process';
 import * as yaml from 'yaml';
 
-
 export class FlrCommand {
   public static async initAll() {
+    console.log('[FLR] initAll started');
+
     // 检测当前flutter主工程根目录是否存在 pubspec.yaml；若不存在说明不是flutter工程
     let flutterMainProjectRootDir = FlrFileUtil.getFlutterMainProjectRootDir();
+    console.log('[FLR] Main project root dir:', flutterMainProjectRootDir);
+
     if (flutterMainProjectRootDir === undefined) {
+      console.log('[FLR] No main project root directory found');
+      vscode.window.showErrorMessage(
+        '[FLR] No Flutter project found in workspace'
+      );
       return;
     }
+
     let mainProjectPubspecFile = FlrFileUtil.getPubspecFilePath(
       flutterMainProjectRootDir
     );
+    console.log('[FLR] Main project pubspec file:', mainProjectPubspecFile);
+
     if (fs.existsSync(mainProjectPubspecFile) === false) {
+      console.log('[FLR] Main project pubspec.yaml does not exist');
+      vscode.window.showErrorMessage(
+        '[FLR] pubspec.yaml not found in project root'
+      );
       return;
     }
 
     // 获取主工程和其所有子工程，对它们进行initOne操作
     let flutterSubProjectRootDirArray =
       FlrFileUtil.getFlutterSubProjectRootDirs(flutterMainProjectRootDir);
-    this.initOne(flutterMainProjectRootDir);
-    flutterSubProjectRootDirArray.forEach((flutterProjectRootDir) => {
-      this.initOne(flutterProjectRootDir);
-    });
+    console.log(
+      '[FLR] Found sub-projects:',
+      flutterSubProjectRootDirArray.length
+    );
 
+    await this.initOne(flutterMainProjectRootDir);
+    for (const flutterProjectRootDir of flutterSubProjectRootDirArray) {
+      await this.initOne(flutterProjectRootDir);
+    }
+
+    console.log('[FLR] initAll completed');
     vscode.window.showInformationMessage(
       `[FLR] All flutter projects init successfully`
     );
@@ -64,7 +84,11 @@ export class FlrCommand {
       let oldFlrConfig = flr;
 
       let dartfmt_line_length = oldFlrConfig.get('dartfmt_line_length');
-      if (dartfmt_line_length !== undefined && dartfmt_line_length !== null && typeof dartfmt_line_length === 'number') {
+      if (
+        dartfmt_line_length !== undefined &&
+        dartfmt_line_length !== null &&
+        typeof dartfmt_line_length === 'number'
+      ) {
         flrDartfmtLineLength = dartfmt_line_length;
         oldFlrConfig.set('dartfmt_line_length', flrDartfmtLineLength);
       }
@@ -83,7 +107,11 @@ export class FlrCommand {
         /// sdk: '>=2.15.0'
         /// sdk: ^3.8.1
         /// sdk: '>=2.15.0 <3.0.0'
-        let constraints = value.toString().replace('"', '').replace("'", "").split(' ');
+        let constraints = value
+          .toString()
+          .replace('"', '')
+          .replace("'", '')
+          .split(' ');
         const isRanged = constraints.length > 1;
         let minimumVersion: number = -1;
         if (isRanged) {
@@ -93,7 +121,9 @@ export class FlrCommand {
             .replace('=', '');
           let valus = atLeastVersion.split('.');
           let dartVersion =
-            (parseInt(valus[0]) ?? 0) * 10000000 + (parseInt(valus[1]) ?? 0) * 1000 + (parseInt(valus[2]) ?? 0);
+            (parseInt(valus[0]) ?? 0) * 10000000 +
+            (parseInt(valus[1]) ?? 0) * 1000 +
+            (parseInt(valus[2]) ?? 0);
           minimumVersion = dartVersion;
         } else {
           /// sdk: '>=2.15.0'
@@ -104,10 +134,12 @@ export class FlrCommand {
             .replace('=', '')
             .replace('^', '');
           let valus = atLeastVersion.split('.');
-          let dartVersion = (parseInt(valus[0]) ?? 0) * 10000000 + (parseInt(valus[1]) ?? 0) * 1000 + (parseInt(valus[2]) ?? 0);
+          let dartVersion =
+            (parseInt(valus[0]) ?? 0) * 10000000 +
+            (parseInt(valus[1]) ?? 0) * 1000 +
+            (parseInt(valus[2]) ?? 0);
           minimumVersion = dartVersion;
         }
-
 
         //20012000
         const dartVersionV1 = 20000000 + 6000; // flutter verion v1.10.15 - dart 2.6.0
@@ -116,14 +148,13 @@ export class FlrCommand {
         const dartVersionV30 = 30000000; // dart 3.0.0
         if (minimumVersion >= dartVersionV30) {
           ref = '1.0.0';
-        } else
-          if (minimumVersion >= dartVersionV15) {
-            ref = '0.4.1';
-          } else if (minimumVersion >= dartVersionV2) {
-            ref = '0.4.0-nullsafety.0';
-          } else if (minimumVersion >= dartVersionV1) {
-            ref = '0.2.1';
-          }
+        } else if (minimumVersion >= dartVersionV15) {
+          ref = '0.4.1';
+        } else if (minimumVersion >= dartVersionV2) {
+          ref = '0.4.0-nullsafety.0';
+        } else if (minimumVersion >= dartVersionV1) {
+          ref = '0.2.1';
+        }
       }
     }
 
@@ -135,7 +166,11 @@ export class FlrCommand {
     };
 
     var dependenciesConfig = pubspecConfig.get('dependencies');
-    if (dependenciesConfig !== undefined && dependenciesConfig !== null && yaml.isMap(dependenciesConfig)) {
+    if (
+      dependenciesConfig !== undefined &&
+      dependenciesConfig !== null &&
+      yaml.isMap(dependenciesConfig)
+    ) {
       dependenciesConfig.set('r_dart_library', rDartLibraryConfig);
     }
 
@@ -145,26 +180,51 @@ export class FlrCommand {
   }
 
   public static async generateAll(silent: boolean = true) {
+    console.log('[FLR] generateAll started, silent:', silent);
+
     // 检测当前flutter主工程根目录是否存在 pubspec.yaml；若不存在说明不是flutter工程
     let flutterMainProjectRootDir = FlrFileUtil.getFlutterMainProjectRootDir();
+    console.log('[FLR] Main project root dir:', flutterMainProjectRootDir);
+
     if (flutterMainProjectRootDir === undefined) {
+      console.log('[FLR] No main project root directory found');
+      if (!silent) {
+        vscode.window.showErrorMessage(
+          '[FLR] No Flutter project found in workspace'
+        );
+      }
       return;
     }
+
     let mainProjectPubspecFile = FlrFileUtil.getPubspecFilePath(
       flutterMainProjectRootDir
     );
+    console.log('[FLR] Main project pubspec file:', mainProjectPubspecFile);
+
     if (fs.existsSync(mainProjectPubspecFile) === false) {
+      console.log('[FLR] Main project pubspec.yaml does not exist');
+      if (!silent) {
+        vscode.window.showErrorMessage(
+          '[FLR] pubspec.yaml not found in project root'
+        );
+      }
       return;
     }
 
     // 获取主工程和其所有子工程，对它们进行generateOne操作
     let flutterSubProjectRootDirArray =
       FlrFileUtil.getFlutterSubProjectRootDirs(flutterMainProjectRootDir);
-    this.generateOne(flutterMainProjectRootDir);
-    flutterSubProjectRootDirArray.forEach((flutterProjectRootDir) => {
-      this.generateOne(flutterProjectRootDir);
-    });
+    console.log(
+      '[FLR] Found sub-projects:',
+      flutterSubProjectRootDirArray.length
+    );
 
+    await this.generateOne(flutterMainProjectRootDir);
+    for (const flutterProjectRootDir of flutterSubProjectRootDirArray) {
+      await this.generateOne(flutterProjectRootDir);
+    }
+
+    console.log('[FLR] generateAll completed');
     if (silent === false) {
       vscode.window.showInformationMessage(
         `[FLR] All flutter projects's resources are generated successfully`
@@ -173,8 +233,13 @@ export class FlrCommand {
   }
 
   public static async generateOne(flutterProjectRootDir: string) {
+    console.log('[FLR] generateOne started for:', flutterProjectRootDir);
+
     let pubspecFile = FlrFileUtil.getPubspecFilePath(flutterProjectRootDir);
+    console.log('[FLR] Pubspec file:', pubspecFile);
+
     if (fs.existsSync(pubspecFile) === false) {
+      console.log('[FLR] Pubspec file does not exist');
       return;
     }
 
@@ -183,9 +248,16 @@ export class FlrCommand {
     );
     let assetsResourceDirs: string[] = resourceDirResultTuple[0];
     let fontsResourceDirs: string[] = resourceDirResultTuple[1];
+    console.log('[FLR] Assets resource dirs:', assetsResourceDirs);
+    console.log('[FLR] Fonts resource dirs:', fontsResourceDirs);
+
     let validResourceDirCount =
       assetsResourceDirs.length + fontsResourceDirs.length;
     if (validResourceDirCount === 0) {
+      console.log('[FLR] No valid resource directories found in flr config');
+      vscode.window.showWarningMessage(
+        '[FLR] No resource directories configured in pubspec.yaml flr section. Please run "Add Flr Config" first.'
+      );
       return;
     }
 
@@ -345,10 +417,7 @@ export class FlrCommand {
     }
 
     var flutterConfig = pubspecConfig.get('flutter');
-    if (
-      flutterConfig === undefined ||
-      flutterConfig === null
-    ) {
+    if (flutterConfig === undefined || flutterConfig === null) {
       flutterConfig = pubspecConfig.createNode({});
     }
     if (yaml.isMap(flutterConfig)) {
@@ -357,9 +426,12 @@ export class FlrCommand {
 
       var oldAssetArray: string[] = new Array();
       let assets = flutterConfig.get('assets');
-      if (yaml.isSeq<string>(assets)) {
-        oldAssetArray = assets.items;
+      if (yaml.isSeq(assets)) {
+        // 确保所有元素都转换为字符串
+        oldAssetArray = assets.items.map((item: any) => String(item));
       }
+      console.log('[FLR] Old assets from pubspec:', oldAssetArray);
+      console.log('[FLR] New assets to add:', newAssetArray);
 
       let assetArray: string[] = FlrAssetUtil.mergeFlutterAssets(
         flutterProjectRootDir,
@@ -367,20 +439,38 @@ export class FlrCommand {
         newAssetArray,
         oldAssetArray
       );
+      console.log('[FLR] Merged assets:', assetArray);
       if (assetArray.length > 0) {
         // flutterConfig.set('assets', assetArray);
         let assetFolders: string[] = new Array();
         for (const arAsset of assetArray) {
-          if (arAsset.startsWith('packages') == false) {
-            let assetFolder = path.dirname(arAsset);
-            const folder = `${assetFolder}/`;
-            if (!assetFolders.includes(folder)) {
-              assetFolders.push(folder);
+          try {
+            // 确保 arAsset 是字符串
+            const assetStr = String(arAsset);
+            console.log(
+              '[FLR] Processing asset:',
+              assetStr,
+              'type:',
+              typeof arAsset
+            );
+
+            if (assetStr.startsWith('packages') == false) {
+              let assetFolder = path.dirname(assetStr);
+              const folder = `${assetFolder}/`;
+              if (!assetFolders.includes(folder)) {
+                assetFolders.push(folder);
+              }
+            } else {
+              assetFolders.push(assetStr);
             }
-          } else {
-            assetFolders.push(arAsset);
+          } catch (error) {
+            console.error('[FLR] Error processing asset:', arAsset, error);
+            vscode.window.showWarningMessage(
+              `[FLR] Skipping invalid asset: ${arAsset}`
+            );
           }
         }
+        console.log('[FLR] Final asset folders:', assetFolders);
         flutterConfig.set('assets', assetFolders);
       } else {
         flutterConfig.delete('assets');
@@ -563,8 +653,27 @@ export class FlrCommand {
     });
   }
 
-  private static async normalizeAssetsAndFontsValue(flrConfig: yaml.YAMLMap): Promise<yaml.YAMLMap> {
-    const validExtension = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'icon', 'bmp', 'wbmp', 'svg', 'txt', 'json', 'yaml', 'xml', 'ttf', 'otf', 'ttc'];
+  private static async normalizeAssetsAndFontsValue(
+    flrConfig: yaml.YAMLMap
+  ): Promise<yaml.YAMLMap> {
+    const validExtension = [
+      'png',
+      'jpg',
+      'jpeg',
+      'gif',
+      'webp',
+      'icon',
+      'bmp',
+      'wbmp',
+      'svg',
+      'txt',
+      'json',
+      'yaml',
+      'xml',
+      'ttf',
+      'otf',
+      'ttc',
+    ];
     let assets = flrConfig.get('assets');
     if (assets !== undefined && assets !== null && yaml.isSeq(assets)) {
       let items: string[] = [];
